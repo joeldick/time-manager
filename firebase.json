@@ -6,7 +6,7 @@
     "public": "dist",
     "rewrites": [
       {
-        "source": "/grantTime", 
+        "source": "/grantTime",
         "function": "grantTime"
       },
       {
@@ -14,5 +14,17 @@
         "destination": "/index.html"
       }
     ]
+  },
+  "emulators": {
+    "functions": {
+      "port": 5001
+    },
+    "hosting": {
+      "port": 5005
+    },
+    "ui": {
+      "enabled": true
+    },
+    "singleProjectMode": true
   }
 }
