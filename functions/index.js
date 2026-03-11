@@ -25,3 +25,21 @@ exports.grantTime = onRequest({ secrets: [sshKey] }, (req, res) => {
     });
   }).connect({ /* ... your config ... */ });
 });
+
+exports.testConnection = onRequest({ secrets: [sshKey] }, (req, res) => {
+  const conn = new Client();
+  conn.on("ready", () => {
+    conn.exec("hostname", (err, stream) => {
+      stream.on('close', () => { conn.end(); });
+      res.status(200).send("Connection successful! Server hostname: " + stream.stdout);
+    });
+  }).on("error", (err) => {
+    res.status(500).send("Connection failed: " + err.message);
+  }).connect({
+    host: "209.227.149.77",
+    port: 50022,
+    username: "sshuser",
+    privateKey: sshKey.value(),
+    readyTimeout: 10000 
+  });
+});
