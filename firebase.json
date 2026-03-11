@@ -10,6 +10,10 @@
         "function": "grantTime"
       },
       {
+        "source": "/testConnection",
+        "function": "testConnection"
+      },
+      {
         "source": "**",
         "destination": "/index.html"
       }
