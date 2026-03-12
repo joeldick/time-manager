@@ -3,6 +3,7 @@ const { Client } = require("ssh2");
 const { defineSecret } = require("firebase-functions/params");
 const { SecretManagerServiceClient } = require("@google-cloud/secret-manager");
 const admin = require("firebase-admin");
+const nodemailer = require("nodemailer");
 
 // Initialize Firebase Admin SDK if not already initialized
 if (!admin.apps.length) {
@@ -183,5 +184,73 @@ exports.testConnection = onRequest({ secrets: [sshKey] }, async (req, res) => {
     console.error('[SSH Error Stack]', err.stack);
     // Return error details instead of silent mock data
     res.status(500).send(`SSH Error: ${err.message}`);
+  }
+});
+
+exports.sendContactEmail = onRequest(async (req, res) => {
+  // Only accept POST requests
+  if (req.method !== 'POST') {
+    return res.status(405).send('Method not allowed');
+  }
+
+  try {
+    const { name, email, message } = req.body;
+
+    // Validate input
+    if (!name || !email || !message) {
+      return res.status(400).send('Missing required fields: name, email, message');
+    }
+
+    // Get support email from environment variable
+    const supportEmail = process.env.SUPPORT_EMAIL;
+
+    if (!supportEmail) {
+      console.error('[Contact Form] Support email not configured. Set SUPPORT_EMAIL environment variable.');
+      return res.status(500).send('Support email not configured on this deployment');
+    }
+
+    // Get Gmail credentials from environment variables (stored in Firebase config)
+    const gmailUser = process.env.GMAIL_USER;
+    const gmailPassword = process.env.GMAIL_PASSWORD;
+
+    if (!gmailUser || !gmailPassword) {
+      console.error('[Contact Form] Gmail credentials not configured');
+      return res.status(500).send('Email service not properly configured');
+    }
+
+    // Create a transporter using Gmail SMTP
+    const transporter = nodemailer.createTransport({
+      service: 'gmail',
+      auth: {
+        user: gmailUser,
+        pass: gmailPassword
+      }
+    });
+
+    // Email options
+    const mailOptions = {
+      from: gmailUser,
+      to: supportEmail,
+      subject: `Time Manager Contact Form: ${name}`,
+      html: `
+        <h2>New Contact Form Submission</h2>
+        <p><strong>Name:</strong> ${name}</p>
+        <p><strong>Email:</strong> ${email}</p>
+        <p><strong>Message:</strong></p>
+        <p>${message.replace(/\n/g, '<br>')}</p>
+        <hr>
+        <p><em>Reply to: ${email}</em></p>
+      `
+    };
+
+    // Send email
+    await transporter.sendMail(mailOptions);
+
+    console.log(`[Contact Form] Email sent from ${email} to ${supportEmail}`);
+    res.status(200).send({ success: true, message: 'Email sent successfully' });
+  } catch (err) {
+    console.error('[Contact Form Error]', err.message);
+    console.error('[Contact Form Error Stack]', err.stack);
+    res.status(500).send(`Error sending email: ${err.message}`);
   }
 });

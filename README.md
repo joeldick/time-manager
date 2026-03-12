@@ -252,7 +252,33 @@ firebase functions:secrets:set SSH_HOST
 
 The application will use `process.env.SSH_HOST` to connect to your server.
 
-### 7. Test SSH Connection
+### 7. Configure Contact Form Email (Optional)
+
+To enable the contact form feature in the application, set up email configuration:
+
+```bash
+firebase functions:config:set contact.support_email="your-support@example.com"
+firebase functions:config:set contact.gmail_user="your-gmail@gmail.com"
+firebase functions:config:set contact.gmail_password="your-app-password"
+```
+
+**For local development**, create a `functions/.env.local` file:
+```bash
+cp functions/.env.example functions/.env.local
+# Edit .env.local with your actual Gmail credentials and support email
+```
+
+Then load the environment variables when running the emulator:
+```bash
+export $(cat functions/.env.local | xargs)
+firebase emulators:start
+```
+
+**Note:** The `.env.local` file is automatically ignored by git (see .gitignore).
+
+### 8. Test SSH Connection
+
+### 8. Test SSH Connection
 
 From your development machine, test the connection:
 ```bash
@@ -261,7 +287,7 @@ ssh -i ~/.ssh/timemanager_key -p 50022 your-username@your-server-ip
 
 If successful, you should see your Linux shell prompt.
 
-### 8. Configure SSH Commands
+### 9. Configure SSH Commands
 
 Your Linux machine needs the `timekpra` command installed and available for the SSH user. Ensure it's in the system PATH or referenced with the full path in `functions/index.js`.
 

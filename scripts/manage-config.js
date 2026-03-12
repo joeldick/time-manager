@@ -128,6 +128,20 @@ const commands = {
     console.log(`✓ SSH username set to "${username}"`);
   },
 
+  async setSupportEmail(email) {
+    const config = await configRef.get();
+    const data = config.data() || {};
+    
+    // Basic email validation
+    if (!email || !email.includes('@')) {
+      console.error('✗ Invalid email address');
+      process.exit(1);
+    }
+    
+    await configRef.set({ ...data, supportEmail: email }, { merge: true });
+    console.log(`✓ Support email set to "${email}"`);
+  },
+
   async list() {
     const config = await configRef.get();
     const data = config.data() || {};
@@ -175,6 +189,14 @@ const commands = {
     }
     
     console.log('');
+    
+    if (data.supportEmail) {
+      console.log(`Support Email: ${data.supportEmail}`);
+    } else {
+      console.log('Support Email: (not set)');
+    }
+    
+    console.log('');
   },
 
   async init() {
@@ -213,6 +235,7 @@ async function main() {
       console.log('  set-ssh-host <hostname>   Set SSH server hostname');
       console.log('  set-ssh-port <port>       Set SSH server port');
       console.log('  set-ssh-username <user>   Set SSH server username');
+      console.log('  set-support-email <email> Set support contact email');
       process.exit(0);
     }
     
@@ -223,7 +246,7 @@ async function main() {
       process.exit(1);
     }
     
-    if (['addKid', 'removeKid', 'addEmail', 'removeEmail', 'setSshHost', 'setSshPort', 'setSshUsername'].includes(cmdName)) {
+    if (['addKid', 'removeKid', 'addEmail', 'removeEmail', 'setSshHost', 'setSshPort', 'setSshUsername', 'setSupportEmail'].includes(cmdName)) {
       if (!arg) {
         console.error(`${command} requires an argument`);
         process.exit(1);
