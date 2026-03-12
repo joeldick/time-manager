@@ -7,7 +7,9 @@
     "dev": "vite",
     "build": "vite build",
     "lint": "eslint .",
-    "preview": "vite preview"
+    "preview": "vite preview",
+    "manage-config": "node scripts/manage-config.js",
+    "setup-firebase": "node scripts/setup-firebase.js"
   },
   "dependencies": {
     "firebase": "^10.8.0",

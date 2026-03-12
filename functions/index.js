@@ -51,7 +51,7 @@ const executeSSHCommand = (cmd, maxRetries = 3) => {
           reject(err);
         }
       }).connect({
-        host: "209.227.149.77",
+        host: process.env.SSH_HOST || "your-server-ip",
         port: 50022,
         username: "sshuser",
         privateKey: sshKey.value(),
