@@ -17,8 +17,9 @@ A web-based application for managing computer usage time limits for multiple use
 
 - **Frontend**: React 19 + Vite 7
 - **Backend**: Firebase Cloud Functions (Node.js)
+- **Database**: Firebase Firestore (for configuration management)
 - **Authentication**: Firebase Auth with Google Sign-In
-- **Infrastructure**: Firebase Hosting & Secrets Manager
+- **Infrastructure**: Firebase Hosting & Secret Manager
 - **SSH**: ssh2 library for server communication
 - **CI/CD**: GitHub Actions for auto-deployment
 
@@ -43,29 +44,43 @@ npm install
 cd functions && npm install && cd ..
 ```
 
-3. Set up Firebase:
+3. Set up Firebase project:
 ```bash
 firebase login
-firebase use gimmetime
+firebase init
 ```
 
-4. Download service account key (if you don't have it locally):
+   During `firebase init`, select:
+   - ✅ **Firestore** - For storing configuration (kids, authorized emails)
+   - ✅ **Functions** - For SSH command execution
+   - ✅ **Hosting** - For deploying the web app
+   - ✅ **Authentication** - For Google Sign-In
+
+   When prompted for a project, create a new Firebase project or select an existing one.
+
+4. After initialization, link your project:
+```bash
+firebase use <your-firebase-project-id>
+```
+
+   Replace `<your-firebase-project-id>` with your actual Firebase project ID (e.g., `gimmetime`, `time-manager-abc123`, etc.).
+
+5. Download service account key (if you don't have it locally):
    - Go to Firebase Console > Project Settings > Service Accounts
    - Click "Generate New Private Key"
    - Save as `serviceAccountKey.json` in the project root (already in .gitignore)
 
-5. Initialize Firestore and configuration:
+6. Initialize Firestore and configuration:
 ```bash
 npm run setup-firebase
 ```
 
-This uses your existing SSH key from Secret Manager and creates/initializes Firestore.
+   This creates/initializes Firestore with default configuration.
 
-6. Update configuration with your actual settings:
+7. Update configuration with your actual settings:
 ```bash
-npm run manage-config -- add-kid child1
-npm run manage-config -- add-kid child2
-npm run manage-config -- add-email authorized@example.com
+npm run manage-config -- add-kid <child_name>
+npm run manage-config -- add-email <your-email@example.com>
 npm run manage-config -- list
 ```
 
@@ -104,16 +119,47 @@ firebase deploy
 
 Configuration is stored in Firestore under `config/app` collection. Use the CLI tool to manage it:
 
+### Initial Setup Steps
+
+After running `npm run setup-firebase`, configure your children and authorized users:
+
+#### 1. Remove Default Kids
+```bash
+npm run manage-config -- remove-kid child1
+npm run manage-config -- remove-kid child2
+npm run manage-config -- remove-kid child3
+```
+
+#### 2. Add Your Kids
+```bash
+npm run manage-config -- add-kid <child_name>
+npm run manage-config -- add-kid <child_name>
+npm run manage-config -- add-kid <child_name>
+```
+
+#### 3. Remove Default Email
+```bash
+npm run manage-config -- remove-email user@example.com
+```
+
+#### 4. Add Authorized Emails
+```bash
+npm run manage-config -- add-email <your-email@example.com>
+npm run manage-config -- add-email <family-email@example.com>
+```
+
+**Note:** Only users with email addresses in the authorized list can access the application.
+
 ### Managing Kids
 ```bash
-npm run manage-config -- add-kid child1
-npm run manage-config -- remove-kid child1
+npm run manage-config -- add-kid <child_name>
+npm run manage-config -- remove-kid <child_name>
 ```
 
 ### Managing Authorized Emails
 ```bash
-npm run manage-config -- add-email user@example.com
-npm run manage-config -- remove-email user@example.com
+npm run manage-config -- add-email <email@example.com>
+npm run manage-config -- remove-email <email@example.com>
 ```
 
 ### View Current Configuration
@@ -121,13 +167,103 @@ npm run manage-config -- remove-email user@example.com
 npm run manage-config -- list
 ```
 
-### SSH Server
-Configure SSH connection in `functions/index.js`:
+**Important:** Configuration changes are applied immediately to the live application—no redeployment needed!
+
+## SSH Server Setup
+
+To enable the Time Manager to control computer usage on your Linux machine, you need to configure SSH access:
+
+### 1. Enable SSH on Your Linux Machine
+
+```bash
+# Install OpenSSH server (if not already installed)
+sudo apt-get install openssh-server
+
+# Start SSH service
+sudo systemctl start ssh
+sudo systemctl enable ssh  # Enable on boot
+```
+
+### 2. Configure SSH on a Non-Standard Port (50022)
+
+Edit the SSH configuration file:
+```bash
+sudo nano /etc/ssh/sshd_config
+```
+
+Find and modify these lines:
+```
+Port 50022
+PermitRootLogin no
+PasswordAuthentication no
+PubkeyAuthentication yes
+```
+
+Restart SSH to apply changes:
+```bash
+sudo systemctl restart ssh
+```
+
+### 3. Set Up SSH Key Authentication
+
+Generate an SSH key pair (run on your development machine):
+```bash
+ssh-keygen -t rsa -b 4096 -f ~/.ssh/timemanager_key
+```
+
+Copy the public key to your Linux machine:
+```bash
+ssh-copy-id -i ~/.ssh/timemanager_key.pub -p 50022 your-username@your-server-ip
+```
+
+### 4. Set Up Port Forwarding on Your Router
+
+1. Log in to your router's admin panel (usually 192.168.1.1 or 192.168.0.1)
+2. Find **Port Forwarding** settings
+3. Forward external port 50022 to your Linux machine's internal IP on port 50022
+4. Save and apply settings
+
+### 5. (Optional) Set Up Dynamic DNS
+
+If your ISP assigns a dynamic IP address, use a Dynamic DNS (DDNS) service:
+
+Popular options:
+- [Duck DNS](https://www.duckdns.org/) (free)
+- [No-IP](https://www.noip.com/) (free tier available)
+- [Cloudflare DDNS](https://developers.cloudflare.com/dns/zone-setups/zone-transfers/migrated-domains/setup-instructions/)
+
+After setting up DDNS, use your domain name instead of an IP address:
+
 ```javascript
-host: process.env.SSH_HOST || "your-server-ip",
+// In functions/index.js
+host: process.env.SSH_HOST || "yourdomain.duckdns.org",
 port: 50022,
 username: "your-username",
 ```
+
+### 6. Configure SSH Host in Firebase
+
+Store your SSH host in Firebase Secret Manager:
+
+```bash
+firebase functions:secrets:set SSH_HOST
+# Enter: your-server-ip or your-domain.duckdns.org
+```
+
+The application will use `process.env.SSH_HOST` to connect to your server.
+
+### 7. Test SSH Connection
+
+From your development machine, test the connection:
+```bash
+ssh -i ~/.ssh/timemanager_key -p 50022 your-username@your-server-ip
+```
+
+If successful, you should see your Linux shell prompt.
+
+### 8. Configure SSH Commands
+
+Your Linux machine needs the `timekpra` command installed and available for the SSH user. Ensure it's in the system PATH or referenced with the full path in `functions/index.js`.
 
 ## Project Structure
 
