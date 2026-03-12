@@ -204,23 +204,13 @@ exports.sendContactEmail = onRequest(async (req, res) => {
       return res.status(400).send('Missing required fields: name, email, message');
     }
 
-    // Get credentials from environment variables (local) or Firebase config (production)
-    let supportEmail = process.env.SUPPORT_EMAIL;
-    let gmailUser = process.env.GMAIL_USER;
-    let gmailPassword = process.env.GMAIL_PASSWORD;
+    // Get credentials from environment variables
+    let supportEmail = process.env.SUPPORT_EMAIL || process.env.CONTACT_SUPPORT_EMAIL;
+    let gmailUser = process.env.GMAIL_USER || process.env.CONTACT_GMAIL_USER;
+    let gmailPassword = process.env.GMAIL_PASSWORD || process.env.CONTACT_GMAIL_PASSWORD;
 
-    // If not in environment, try Firebase config (production)
-    if (!supportEmail || !gmailUser || !gmailPassword) {
-      try {
-        const functions = require('firebase-functions');
-        const config = functions.config();
-        supportEmail = config.contact?.support_email || supportEmail;
-        gmailUser = config.contact?.gmail_user || gmailUser;
-        gmailPassword = config.contact?.gmail_password || gmailPassword;
-      } catch (e) {
-        console.log('[Contact Form] Firebase config not available');
-      }
-    }
+    console.log(`[Contact Form] Checking credentials - supportEmail: ${!!supportEmail}, gmailUser: ${!!gmailUser}, gmailPassword: ${!!gmailPassword}`);
+    console.log(`[Contact Form] Env vars available: SUPPORT_EMAIL=${!!process.env.SUPPORT_EMAIL}, CONTACT_SUPPORT_EMAIL=${!!process.env.CONTACT_SUPPORT_EMAIL}`);
 
     if (!supportEmail) {
       console.error('[Contact Form] Support email not configured.');

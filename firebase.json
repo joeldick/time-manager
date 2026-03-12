@@ -29,6 +29,10 @@
         "function": "testConnection"
       },
       {
+        "source": "/sendContactEmail",
+        "function": "sendContactEmail"
+      },
+      {
         "source": "**",
         "destination": "/index.html"
       }
