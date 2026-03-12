@@ -106,6 +106,28 @@ const commands = {
     console.log(`✓ SSH host set to "${hostname}"`);
   },
 
+  async setSshPort(port) {
+    const config = await configRef.get();
+    const data = config.data() || {};
+    
+    const portNum = parseInt(port, 10);
+    if (isNaN(portNum) || portNum < 1 || portNum > 65535) {
+      console.error('✗ Invalid port number. Must be between 1 and 65535');
+      process.exit(1);
+    }
+    
+    await configRef.set({ ...data, sshPort: portNum }, { merge: true });
+    console.log(`✓ SSH port set to ${portNum}`);
+  },
+
+  async setSshUsername(username) {
+    const config = await configRef.get();
+    const data = config.data() || {};
+    
+    await configRef.set({ ...data, sshUsername: username }, { merge: true });
+    console.log(`✓ SSH username set to "${username}"`);
+  },
+
   async list() {
     const config = await configRef.get();
     const data = config.data() || {};
@@ -138,6 +160,18 @@ const commands = {
       console.log(`SSH Host: ${data.sshHost}`);
     } else {
       console.log('SSH Host: (not set)');
+    }
+    
+    if (data.sshPort) {
+      console.log(`SSH Port: ${data.sshPort}`);
+    } else {
+      console.log('SSH Port: (not set, defaults to 22)');
+    }
+    
+    if (data.sshUsername) {
+      console.log(`SSH Username: ${data.sshUsername}`);
+    } else {
+      console.log('SSH Username: (not set)');
     }
     
     console.log('');
@@ -177,6 +211,8 @@ async function main() {
       console.log('  add-email <email>         Add authorized email');
       console.log('  remove-email <email>      Remove authorized email');
       console.log('  set-ssh-host <hostname>   Set SSH server hostname');
+      console.log('  set-ssh-port <port>       Set SSH server port');
+      console.log('  set-ssh-username <user>   Set SSH server username');
       process.exit(0);
     }
     
@@ -187,7 +223,7 @@ async function main() {
       process.exit(1);
     }
     
-    if (['addKid', 'removeKid', 'addEmail', 'removeEmail', 'setSshHost'].includes(cmdName)) {
+    if (['addKid', 'removeKid', 'addEmail', 'removeEmail', 'setSshHost', 'setSshPort', 'setSshUsername'].includes(cmdName)) {
       if (!arg) {
         console.error(`${command} requires an argument`);
         process.exit(1);

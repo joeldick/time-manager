@@ -29,26 +29,35 @@ const getSSHKeyFromSecretManager = async () => {
   }
 };
 
-// Function to get SSH host from Firestore config
-const getSSHHostFromConfig = async () => {
+// Function to get SSH configuration from Firestore config
+const getSSHConfigFromFirestore = async () => {
   try {
     const configRef = admin.firestore().collection('config').doc('app');
     const config = await configRef.get();
     const configData = config.data() || {};
     const sshHost = configData.sshHost;
+    const sshPort = configData.sshPort || 22;  // Default to standard SSH port if not set
+    const sshUsername = configData.sshUsername;
+    
     if (!sshHost) {
       throw new Error("SSH host not configured in Firestore config/app document");
     }
-    return sshHost;
+    if (!sshUsername) {
+      throw new Error("SSH username not configured in Firestore config/app document");
+    }
+    
+    return { sshHost, sshPort, sshUsername };
   } catch (err) {
-    console.error("[SSH Debug] Failed to get SSH host from config:", err.message);
+    console.error("[SSH Debug] Failed to get SSH configuration from Firestore:", err.message);
     throw err;
   }
 };
 
 // Retry function with exponential backoff
-const executeSSHCommand = async (cmd, sshHost, maxRetries = 3) => {
+const executeSSHCommand = async (cmd, sshConfig, maxRetries = 3) => {
   return new Promise(async (resolve, reject) => {
+    const { sshHost, sshPort, sshUsername } = sshConfig;
+    
     // Try to get SSH key from defineSecret first, then fallback to Secret Manager
     let privateKey = sshKey.value();
     console.log(`[SSH Debug] defineSecret SSH_PRIVATE_KEY available: ${!!privateKey}`);
@@ -65,7 +74,7 @@ const executeSSHCommand = async (cmd, sshHost, maxRetries = 3) => {
       return;
     }
     
-    console.log(`[SSH Debug] SSH connection attempt to ${sshHost}:50022 (attempt 1/${maxRetries})`);
+    console.log(`[SSH Debug] SSH connection attempt to ${sshHost}:${sshPort} (attempt 1/${maxRetries})`);
     
     const attempt = (retryCount) => {
       const conn = new Client();
@@ -122,8 +131,8 @@ const executeSSHCommand = async (cmd, sshHost, maxRetries = 3) => {
         }
       }).connect({
         host: sshHost,
-        port: 50022,
-        username: "sshuser",
+        port: sshPort,
+        username: sshUsername,
         privateKey: privateKey,
         readyTimeout: 15000,
         connectionTimeout: 15000
@@ -138,8 +147,8 @@ exports.grantTime = onRequest({ secrets: [sshKey] }, async (req, res) => {
   const { action, kid, minutes } = req.query;
   
   try {
-    // Get SSH host from Firestore config
-    const sshHost = await getSSHHostFromConfig();
+    // Get SSH configuration from Firestore config
+    const sshConfig = await getSSHConfigFromFirestore();
     
     let cmd;
     if (action === 'status') {
@@ -152,7 +161,7 @@ exports.grantTime = onRequest({ secrets: [sshKey] }, async (req, res) => {
       cmd = `timekpra --settimeleft ${kid} '=' 0`;
     }
 
-    const data = await executeSSHCommand(cmd, sshHost);
+    const data = await executeSSHCommand(cmd, sshConfig);
     res.status(200).send(data);
   } catch (err) {
     console.error('[SSH Error in grantTime]', err.message);
@@ -164,10 +173,10 @@ exports.grantTime = onRequest({ secrets: [sshKey] }, async (req, res) => {
 
 exports.testConnection = onRequest({ secrets: [sshKey] }, async (req, res) => {
   try {
-    // Get SSH host from Firestore config
-    const sshHost = await getSSHHostFromConfig();
+    // Get SSH configuration from Firestore config
+    const sshConfig = await getSSHConfigFromFirestore();
     
-    const data = await executeSSHCommand("hostname", sshHost);
+    const data = await executeSSHCommand("hostname", sshConfig);
     res.status(200).send("Connection successful! Server hostname: " + data.trim());
   } catch (err) {
     console.error('[SSH Error in testConnection]', err.message);
