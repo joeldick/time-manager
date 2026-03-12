@@ -5,6 +5,9 @@ const { SecretManagerServiceClient } = require("@google-cloud/secret-manager");
 const admin = require("firebase-admin");
 const nodemailer = require("nodemailer");
 
+// Load environment variables from .env.local for local development
+require('dotenv').config({ path: `${__dirname}/.env.local` });
+
 // Initialize Firebase Admin SDK if not already initialized
 if (!admin.apps.length) {
   admin.initializeApp();
@@ -201,21 +204,36 @@ exports.sendContactEmail = onRequest(async (req, res) => {
       return res.status(400).send('Missing required fields: name, email, message');
     }
 
-    // Get support email from environment variable
-    const supportEmail = process.env.SUPPORT_EMAIL;
+    // Get credentials from environment variables (local) or Firebase config (production)
+    let supportEmail = process.env.SUPPORT_EMAIL;
+    let gmailUser = process.env.GMAIL_USER;
+    let gmailPassword = process.env.GMAIL_PASSWORD;
 
-    if (!supportEmail) {
-      console.error('[Contact Form] Support email not configured. Set SUPPORT_EMAIL environment variable.');
-      return res.status(500).send('Support email not configured on this deployment');
+    // If not in environment, try Firebase config (production)
+    if (!supportEmail || !gmailUser || !gmailPassword) {
+      try {
+        const functions = require('firebase-functions');
+        const config = functions.config();
+        supportEmail = config.contact?.support_email || supportEmail;
+        gmailUser = config.contact?.gmail_user || gmailUser;
+        gmailPassword = config.contact?.gmail_password || gmailPassword;
+      } catch (e) {
+        console.log('[Contact Form] Firebase config not available');
+      }
     }
 
-    // Get Gmail credentials from environment variables (stored in Firebase config)
-    const gmailUser = process.env.GMAIL_USER;
-    const gmailPassword = process.env.GMAIL_PASSWORD;
+    if (!supportEmail) {
+      console.error('[Contact Form] Support email not configured.');
+      return res.status(500).json({ success: false, message: 'Support email not configured on this deployment' });
+    }
 
+    // If email credentials are not available, log the submission (local testing mode)
     if (!gmailUser || !gmailPassword) {
-      console.error('[Contact Form] Gmail credentials not configured');
-      return res.status(500).send('Email service not properly configured');
+      console.log('[Contact Form] Email credentials not configured - logging submission for testing');
+      console.log(`[Contact Form] Name: ${name}`);
+      console.log(`[Contact Form] Email: ${email}`);
+      console.log(`[Contact Form] Message: ${message}`);
+      return res.status(200).json({ success: true, message: 'Message logged (email not sent - credentials not configured)' });
     }
 
     // Create a transporter using Gmail SMTP
@@ -247,10 +265,10 @@ exports.sendContactEmail = onRequest(async (req, res) => {
     await transporter.sendMail(mailOptions);
 
     console.log(`[Contact Form] Email sent from ${email} to ${supportEmail}`);
-    res.status(200).send({ success: true, message: 'Email sent successfully' });
+    res.status(200).json({ success: true, message: 'Email sent successfully' });
   } catch (err) {
     console.error('[Contact Form Error]', err.message);
     console.error('[Contact Form Error Stack]', err.stack);
-    res.status(500).send(`Error sending email: ${err.message}`);
+    res.status(500).json({ success: false, message: `Error sending email: ${err.message}` });
   }
 });

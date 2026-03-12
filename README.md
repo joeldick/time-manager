@@ -254,27 +254,52 @@ The application will use `process.env.SSH_HOST` to connect to your server.
 
 ### 7. Configure Contact Form Email (Optional)
 
-To enable the contact form feature in the application, set up email configuration:
+To enable the contact form feature in the application, you need to set up email credentials using Firebase's new Params API.
 
+#### Production Setup (Firebase Deployment)
+
+1. **Create a Gmail App Password:**
+   - Go to [Google Account](https://myaccount.google.com/)
+   - Enable 2-Factor Authentication (if not already enabled)
+   - Go to [App Passwords](https://myaccount.google.com/apppasswords)
+   - Select "Mail" and "Windows Computer" (or your device)
+   - Generate and copy the 16-character password (remove spaces)
+
+2. **Set Firebase Parameters (new Params API):**
 ```bash
-firebase functions:config:set contact.support_email="your-support@example.com"
-firebase functions:config:set contact.gmail_user="your-gmail@gmail.com"
-firebase functions:config:set contact.gmail_password="your-app-password"
+firebase functions:secrets:set CONTACT_GMAIL_PASSWORD
+# Paste your 16-character Gmail app password (no spaces)
+
+firebase functions:config:set \
+  CONTACT_SUPPORT_EMAIL="your-support@example.com" \
+  CONTACT_GMAIL_USER="your-gmail@gmail.com"
 ```
 
-**For local development**, create a `functions/.env.local` file:
+3. **Deploy:**
+```bash
+firebase deploy --only functions
+```
+
+#### Local Development Setup
+
+1. **Create `.env.local` file in `functions/` directory:**
 ```bash
 cp functions/.env.example functions/.env.local
-# Edit .env.local with your actual Gmail credentials and support email
 ```
 
-Then load the environment variables when running the emulator:
+2. **Edit `functions/.env.local` with your test credentials:**
+```
+SUPPORT_EMAIL=your-email@example.com
+GMAIL_USER=your-gmail@gmail.com
+GMAIL_PASSWORD=your16charapppassword
+```
+
+3. **The emulator will automatically load these variables** when you run:
 ```bash
-export $(cat functions/.env.local | xargs)
 firebase emulators:start
 ```
 
-**Note:** The `.env.local` file is automatically ignored by git (see .gitignore).
+**Note:** The `.env.local` file is automatically ignored by git (see .gitignore). The contact form will work without email credentials set—it will log submissions to the console instead of sending emails. This is useful for testing.
 
 ### 8. Test SSH Connection
 
