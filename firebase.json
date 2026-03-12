@@ -36,13 +36,14 @@
   },
   "emulators": {
     "functions": {
-      "port": 5001
+      "port": 5002
     },
     "hosting": {
-      "port": 5005
+      "port": 5006
     },
     "ui": {
-      "enabled": true
+      "enabled": true,
+      "port": 4002
     },
     "singleProjectMode": true
   }

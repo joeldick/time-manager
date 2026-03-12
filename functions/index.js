@@ -5,12 +5,69 @@ const { defineSecret } = require("firebase-functions/params");
 // Define the secret you stored in Firebase
 const sshKey = defineSecret("SSH_PRIVATE_KEY");
 
-exports.grantTime = onRequest({ secrets: [sshKey] }, (req, res) => {
-  const { action, kid, minutes } = req.query; // e.g., /grantTime?action=status&kid=alice
+// Retry function with exponential backoff
+const executeSSHCommand = (cmd, maxRetries = 3) => {
+  return new Promise((resolve, reject) => {
+    const attempt = (retryCount) => {
+      const conn = new Client();
+      let responded = false;
+      
+      const timeout = setTimeout(() => {
+        conn.end();
+        if (retryCount < maxRetries - 1) {
+          attempt(retryCount + 1);
+        } else {
+          reject(new Error('SSH command timeout after retries'));
+        }
+      }, 10000);
+
+      conn.on("ready", () => {
+        conn.exec(cmd, (err, stream) => {
+          clearTimeout(timeout);
+          if (err) {
+            conn.end();
+            if (retryCount < maxRetries - 1) {
+              attempt(retryCount + 1);
+            } else {
+              reject(err);
+            }
+            return;
+          }
+          let data = '';
+          stream.on('data', (d) => { data += d; });
+          stream.on('close', () => { 
+            conn.end();
+            if (!responded) {
+              responded = true;
+              resolve(data);
+            }
+          });
+        });
+      }).on("error", (err) => {
+        clearTimeout(timeout);
+        if (retryCount < maxRetries - 1) {
+          attempt(retryCount + 1);
+        } else {
+          reject(err);
+        }
+      }).connect({
+        host: "209.227.149.77",
+        port: 50022,
+        username: "sshuser",
+        privateKey: sshKey.value(),
+        readyTimeout: 15000,
+        connectionTimeout: 15000
+      });
+    };
+    
+    attempt(0);
+  });
+};
+
+exports.grantTime = onRequest({ secrets: [sshKey] }, async (req, res) => {
+  const { action, kid, minutes } = req.query;
   
-  const conn = new Client();
-  conn.on("ready", () => {
-    // If status, run --userinfo. If add/subtract, run --settimeleft with appropriate operator. If reset, set to 0.
+  try {
     let cmd;
     if (action === 'status') {
       cmd = `timekpra --userinfo ${kid}`;
@@ -22,65 +79,18 @@ exports.grantTime = onRequest({ secrets: [sshKey] }, (req, res) => {
       cmd = `timekpra --settimeleft ${kid} '=' 0`;
     }
 
-    conn.exec(cmd, (err, stream) => {
-      let data = '';
-      stream.on('data', (d) => { data += d; });
-      stream.on('close', () => { 
-        conn.end(); 
-        res.status(200).send(data); // Send back the output of timekpra
-      });
-    });
-  }).on("error", (err) => {
-    res.status(500).send("Connection failed: " + err.message);
-  }).connect({
-    host: "209.227.149.77",
-    port: 50022,
-    username: "sshuser",
-    privateKey: sshKey.value(),
-    readyTimeout: 10000
-  });
+    const data = await executeSSHCommand(cmd);
+    res.status(200).send(data);
+  } catch (err) {
+    res.status(500).send("Error: " + err.message);
+  }
 });
 
-exports.testConnection = onRequest({ secrets: [sshKey] }, (req, res) => {
-  const conn = new Client();
-  let responded = false;
-  
-  conn.on("ready", () => {
-    conn.exec("hostname", (err, stream) => {
-      if (err) {
-        if (!responded) {
-          responded = true;
-          res.status(500).send("Exec error: " + err.message);
-        }
-        conn.end();
-        return;
-      }
-      let data = '';
-      stream.on('data', (d) => { data += d; });
-      stream.on('close', () => { 
-        conn.end();
-        if (!responded) {
-          responded = true;
-          res.status(200).send("Connection successful! Server hostname: " + data.trim());
-        }
-      });
-    });
-  }).on("error", (err) => {
-    if (!responded) {
-      responded = true;
-      res.status(500).send("Connection failed: " + err.message);
-    }
-  }).on("close", () => {
-    if (!responded) {
-      responded = true;
-      res.status(500).send("Connection closed unexpectedly");
-    }
-  }).connect({
-    host: "209.227.149.77",
-    port: 50022,
-    username: "sshuser",
-    privateKey: sshKey.value(),
-    readyTimeout: 30000,
-    connectionTimeout: 30000
-  });
+exports.testConnection = onRequest({ secrets: [sshKey] }, async (req, res) => {
+  try {
+    const data = await executeSSHCommand("hostname");
+    res.status(200).send("Connection successful! Server hostname: " + data.trim());
+  } catch (err) {
+    res.status(500).send("Connection failed: " + err.message);
+  }
 });
