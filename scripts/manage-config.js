@@ -98,6 +98,14 @@ const commands = {
     console.log(`✓ Removed email "${email}"`);
   },
 
+  async setSshHost(hostname) {
+    const config = await configRef.get();
+    const data = config.data() || {};
+    
+    await configRef.set({ ...data, sshHost: hostname }, { merge: true });
+    console.log(`✓ SSH host set to "${hostname}"`);
+  },
+
   async list() {
     const config = await configRef.get();
     const data = config.data() || {};
@@ -122,6 +130,14 @@ const commands = {
       });
     } else {
       console.log('Authorized Emails: (none)');
+    }
+    
+    console.log('');
+    
+    if (data.sshHost) {
+      console.log(`SSH Host: ${data.sshHost}`);
+    } else {
+      console.log('SSH Host: (not set)');
     }
     
     console.log('');
@@ -160,6 +176,7 @@ async function main() {
       console.log('  remove-kid <name>         Remove a child');
       console.log('  add-email <email>         Add authorized email');
       console.log('  remove-email <email>      Remove authorized email');
+      console.log('  set-ssh-host <hostname>   Set SSH server hostname');
       process.exit(0);
     }
     
@@ -170,7 +187,7 @@ async function main() {
       process.exit(1);
     }
     
-    if (['addKid', 'removeKid', 'addEmail', 'removeEmail'].includes(cmdName)) {
+    if (['addKid', 'removeKid', 'addEmail', 'removeEmail', 'setSshHost'].includes(cmdName)) {
       if (!arg) {
         console.error(`${command} requires an argument`);
         process.exit(1);
